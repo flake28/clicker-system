@@ -10,9 +10,11 @@ import Results from './pages/Results'
 
 export default function App() {
   const [lastEvent, setLastEvent] = useState(null)
+  const [enrollEvent, setEnrollEvent] = useState(null)
 
   const { connected } = useSocket((name, data) => {
     setLastEvent({ name, data })
+    if (name === 'enroll:seen') setEnrollEvent(data)
   })
 
   return (
@@ -20,7 +22,7 @@ export default function App() {
       <NavBar connected={connected} />
       <Routes>
         <Route path="/" element={<Dashboard lastEvent={lastEvent} />} />
-        <Route path="/enroll" element={<Enroll />} />
+        <Route path="/enroll" element={<Enroll enrollEvent={enrollEvent} />} />
         <Route path="/session/new" element={<SessionBuilder />} />
         <Route path="/session/:id/live" element={<LiveView lastEvent={lastEvent} />} />
         <Route path="/session/:id/results" element={<Results />} />

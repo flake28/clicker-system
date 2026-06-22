@@ -20,6 +20,18 @@ router.post('/enroll/assign', (req, res) => {
   res.json({ id: result.lastInsertRowid, mac, student_id })
 })
 
+router.post('/enroll/start', (req, res) => {
+  const wsServer = require('../ws/socketServer')
+  wsServer.broadcast('enroll:started', {})
+  res.json({ enrolling: true })
+})
+
+router.post('/enroll/stop', (req, res) => {
+  const wsServer = require('../ws/socketServer')
+  wsServer.broadcast('enroll:stopped', {})
+  res.json({ enrolling: false })
+})
+
 router.delete('/students/:id', (req, res) => {
   db.deleteStudent(req.params.id)
   res.json({ deleted: true })

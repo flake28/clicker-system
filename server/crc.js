@@ -32,12 +32,30 @@ function buildAndSend(sessionId, questionId, mac, bitmask) {
   console.log(`MAC ${mac} bitmask ${bitmask} → ${result.trim()}`)
 }
 
-const [,, sid, qid, mac, bitmask] = process.argv
+function buildAndSendEnroll(mac) {
+  const macBytes = mac.split(':').map(b => parseInt(b, 16))
+  const payload = Buffer.from([0x82, ...macBytes])
+  const crcInput = Buffer.concat([Buffer.from([payload.length]), payload])
+  const crc = crc8(crcInput)
+  const frame = Buffer.from([0xAA, payload.length, ...payload, crc])
+  const hex = frame.toString('hex').toUpperCase().match(/../g).join(' ')
 
-if (!sid || !qid) {
-  console.log('Usage: node crc.js <sessionId> <questionId> <mac> <bitmask>')
-  console.log('Example: node crc.js 11 11 AA:BB:CC:DD:EE:01 1')
-  process.exit(1)
+  const cmd = `curl -s -X POST http://localhost:3001/dev/simulate -H "Content-Type: application/json" -d '{"hex":"${hex}"}'`
+  const result = execSync(cmd).toString()
+  console.log(`Enroll seen: ${mac} → ${result.trim()}`)
 }
 
-buildAndSend(parseInt(sid), parseInt(qid), mac || 'AA:BB:CC:DD:EE:FF', parseInt(bitmask) || 2)
+const args = process.argv.slice(2)
+
+if (args[0] === 'enroll') {
+  buildAndSendEnroll(args[1] || 'AA:BB:CC:DD:EE:FF')
+} else {
+  const [sid, qid, mac, bitmask] = args
+  if (!sid || !qid) {
+    console.log('Usage:')
+    console.log('  node crc.js <sessionId> <questionId> <mac> <bitmask>')
+    console.log('  node crc.js enroll <mac>')
+    process.exit(1)
+  }
+  buildAndSend(parseInt(sid), parseInt(qid), mac || 'AA:BB:CC:DD:EE:FF', parseInt(bitmask) || 2)
+}
