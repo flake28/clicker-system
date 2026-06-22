@@ -47,4 +47,9 @@ db.exec(`
   );
 `)
 
+  db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_responses_question_mac
+  ON responses(question_id, mac);
+  `)
+
 module.exports = db

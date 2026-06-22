@@ -1,4 +1,5 @@
 const db = require('./schema')
+const database = require('./schema')
 
 // ── Students ──────────────────────────────────────────
 
@@ -82,9 +83,13 @@ function updateQuestion(id, fields) {
 // ── Responses ─────────────────────────────────────────
 
 function saveResponse(questionId, sessionId, mac, studentId, answerBitmask, timestampMs) {
-  return db.prepare(`
+  return database.prepare(`
     INSERT INTO responses (question_id, session_id, mac, student_id, answer_bitmask, timestamp_ms)
     VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(question_id, mac) DO UPDATE SET
+      answer_bitmask = excluded.answer_bitmask,
+      timestamp_ms   = excluded.timestamp_ms,
+      received_at    = (strftime('%s','now') * 1000)
   `).run(questionId, sessionId, mac, studentId, answerBitmask, timestampMs)
 }
 

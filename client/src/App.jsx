@@ -1,32 +1,31 @@
 import { useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import useSocket from './hooks/useSocket.jsx'
+import NavBar from './components/NavBar'
+import Dashboard from './pages/Dashboard'
+import Enroll from './pages/Enroll'
+import SessionBuilder from './pages/SessionBuilder'
+import LiveView from './pages/LiveView'
+import Results from './pages/Results'
 
 export default function App() {
-  const [events, setEvents] = useState([])
+  const [lastEvent, setLastEvent] = useState(null)
 
   const { connected } = useSocket((name, data) => {
-    setEvents(prev => [...prev, { name, data, time: Date.now() }])
+    setLastEvent({ name, data })
   })
 
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '2rem' }}>
-      <h1>Clicker System</h1>
-      <p>Server: <strong>{connected ? '🟢 connected' : '🔴 disconnected'}</strong></p>
-
-      <h2>Live events</h2>
-      {events.length === 0 && <p>No events yet.</p>}
-      {events.map((e, i) => (
-        <div key={i} style={{ 
-          fontFamily: 'monospace', 
-          fontSize: '13px',
-          padding: '6px 10px',
-          marginBottom: '4px',
-          background: '#f4f4f4',
-          borderRadius: '4px'
-        }}>
-          <strong>{e.name}</strong> — {JSON.stringify(e.data)}
-        </div>
-      ))}
-    </div>
+    <BrowserRouter>
+      <NavBar connected={connected} />
+      <Routes>
+        <Route path="/" element={<Dashboard lastEvent={lastEvent} />} />
+        <Route path="/enroll" element={<Enroll />} />
+        <Route path="/session/new" element={<SessionBuilder />} />
+        <Route path="/session/:id/live" element={<LiveView lastEvent={lastEvent} />} />
+        <Route path="/session/:id/results" element={<Results />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </BrowserRouter>
   )
 }

@@ -1,6 +1,8 @@
 const express = require('express')
 const router = express.Router()
 const db = require('../db/queries')
+const database = require('../db/schema')
+const sessionState = require('../state/sessionState')
 
 // ── Students ──────────────────────────────────────────
 
@@ -74,6 +76,46 @@ router.get('/sessions/:id/questions', (req, res) => {
   res.json(db.getQuestions(req.params.id))
 })
 
+router.delete('/questions/:id', (req, res) => {
+  database.prepare('DELETE FROM questions WHERE id = ?').run(req.params.id)
+  res.json({ deleted: true })
+})
+
+// ── Question open/close ───────────────────────────────
+
+router.post('/sessions/:id/questions/:qid/open', (req, res) => {
+  const sessionId  = parseInt(req.params.id)
+  const questionId = parseInt(req.params.qid)
+
+  const q = database.prepare('SELECT * FROM questions WHERE id = ?').get(questionId)
+  if (!q) return res.status(404).json({ error: 'question not found' })
+
+  const wsServer = require('../ws/socketServer')
+
+  sessionState.openQuestion(sessionId, questionId, q.duration_ms, (qid) => {
+    wsServer.broadcast('question:timeout', { question_id: qid })
+    console.log(`[State] Question ${qid} timed out`)
+  })
+
+  wsServer.broadcast('question:opened', {
+    session_id: sessionId,
+    question_id: questionId,
+    duration_ms: q.duration_ms
+  })
+  res.json({ opened: true, duration_ms: q.duration_ms })
+})
+
+router.post('/sessions/:id/questions/:qid/close', (req, res) => {
+  const wsServer = require('../ws/socketServer')
+  sessionState.closeQuestion()
+  wsServer.broadcast('question:closed', { question_id: parseInt(req.params.qid) })
+  res.json({ closed: true })
+})
+
+router.get('/device/state', (req, res) => {
+  res.json(sessionState.getState())
+})
+
 // ── Results ───────────────────────────────────────────
 
 router.get('/sessions/:id/results', (req, res) => {
@@ -95,7 +137,6 @@ router.get('/device/status', (req, res) => {
 })
 
 router.post('/device/ping', (req, res) => {
-  // sender.ping() wired in Step 10
   res.json({ sent: true })
 })
 

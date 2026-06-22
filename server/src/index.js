@@ -3,6 +3,7 @@ const http = require('http')
 const FrameParser = require('./serial/frameParser')
 const { CommandSender, REPORTS } = require('./serial/commandSender')
 const wsServer = require('./ws/socketServer')
+const cors = require('cors')
 
 const app = express()
 const server = http.createServer(app)
@@ -12,6 +13,7 @@ const sender = new CommandSender()
 const PORT = 3001
 
 app.use(express.json())
+app.use(cors({ origin: 'http://localhost:5173' }))
 const apiRoutes = require('./api/routes')
 app.use('/api', apiRoutes)
 
@@ -37,6 +39,12 @@ parser.on('frame', (payload) => {
       const bitmask    = payload.readUInt32LE(11)
       const timestamp  = payload.readUInt32LE(15)
 
+        const { isAccepting } = require('./state/sessionState')
+        if (!isAccepting(sessionId, questionId)) {
+        console.warn(`[Receiver] Response rejected — question ${questionId} not open`)
+        break
+        } 
+      
       const student = require('./db/queries').getStudentByMac(mac)
 
       require('./db/queries').saveResponse(
