@@ -94,11 +94,22 @@ function saveResponse(questionId, sessionId, mac, studentId, answerBitmask, time
 }
 
 function getResponsesForQuestion(questionId) {
-  return db.prepare('SELECT * FROM responses WHERE question_id = ?').all(questionId)
+  return database.prepare(`
+    SELECT r.*, s.student_id as student_name
+    FROM responses r
+    LEFT JOIN students s ON r.mac = s.mac
+    WHERE r.question_id = ?
+  `).all(questionId)
 }
 
 function getResponsesForSession(sessionId) {
-  return db.prepare('SELECT * FROM responses WHERE session_id = ? ORDER BY received_at').all(sessionId)
+  return database.prepare(`
+    SELECT r.*, s.student_id as student_name
+    FROM responses r
+    LEFT JOIN students s ON r.mac = s.mac
+    WHERE r.session_id = ?
+    ORDER BY r.received_at
+  `).all(sessionId)
 }
 
 function getResponsesForStudent(studentId) {

@@ -10,13 +10,20 @@ export default function Enroll({ enrollEvent }) {
   const [studentName, setStudentName] = useState('')
   const enrollingRef = useRef(false)
 
-  // ── Load existing students ────────────────────────
+  // ── Load existing students on mount ──────────────
+  useEffect(() => {
+    fetch(`${API}/students`)
+      .then(r => r.json())
+      .then(setStudents)
+  }, [])
+
+  // ── Handle enroll:seen WebSocket event ───────────
   useEffect(() => {
     if (!enrollEvent) return
     if (!enrollingRef.current) return
     const { mac } = enrollEvent
     if (!pendingMacs.includes(mac) && !students.find(s => s.mac === mac)) {
-    setPendingMacs(prev => [...prev, mac])
+      setPendingMacs(prev => [...prev, mac])
     }
   }, [enrollEvent])
 

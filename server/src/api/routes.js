@@ -62,6 +62,11 @@ router.delete('/sessions/:id', (req, res) => {
   res.json({ deleted: true })
 })
 
+router.delete('/responses/:id', (req, res) => {
+  database.prepare('DELETE FROM responses WHERE id = ?').run(req.params.id)
+  res.json({ deleted: true })
+})
+
 // ── Questions ─────────────────────────────────────────
 
 router.post('/sessions/:id/questions', (req, res) => {

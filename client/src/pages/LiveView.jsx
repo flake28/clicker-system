@@ -13,12 +13,13 @@ export default function LiveView({ lastEvent }) {
   const [session, setSession] = useState(null)
   const [questions, setQuestions] = useState([])
   const [currentQ, setCurrentQ] = useState(0)
-  const [responses, setResponses] = useState({})   // { mac: bitmask }
+  const [responses, setResponses] = useState({})
   const [open, setOpen] = useState(false)
   const [timeLeft, setTimeLeft] = useState(0)
+  const [enrolledMacs, setEnrolledMacs] = useState(new Set())
   const timerRef = useRef(null)
 
-  // ── Load session on mount ─────────────────────────
+  // ── Load session and enrolled students on mount ───
   useEffect(() => {
     fetch(`${API}/sessions/${id}`)
       .then(r => r.json())
@@ -26,22 +27,26 @@ export default function LiveView({ lastEvent }) {
         setSession(data)
         setQuestions(data.questions || [])
       })
+
+    fetch(`${API}/students`)
+      .then(r => r.json())
+      .then(data => setEnrolledMacs(new Set(data.map(s => s.mac))))
   }, [id])
 
   // ── Handle incoming WebSocket events ─────────────
   useEffect(() => {
-  if (!lastEvent) return
-  if (lastEvent.name === 'response:received') {
-    const { mac, answer_bitmask, question_id } = lastEvent.data
-    if (question_id === questions[currentQ]?.id) {
-      setResponses(prev => ({ ...prev, [mac]: answer_bitmask }))
+    if (!lastEvent) return
+    if (lastEvent.name === 'response:received') {
+      const { mac, answer_bitmask, question_id } = lastEvent.data
+      if (question_id === questions[currentQ]?.id) {
+        setResponses(prev => ({ ...prev, [mac]: answer_bitmask }))
+      }
     }
-  }
-  if (lastEvent.name === 'question:timeout') {
-    clearInterval(timerRef.current)
-    setOpen(false)
-    setTimeLeft(0)
-  }
+    if (lastEvent.name === 'question:timeout') {
+      clearInterval(timerRef.current)
+      setOpen(false)
+      setTimeLeft(0)
+    }
   }, [lastEvent])
 
   // ── Timer ─────────────────────────────────────────
@@ -67,18 +72,16 @@ export default function LiveView({ lastEvent }) {
     setResponses({})
     setOpen(true)
     startTimer(q.duration_ms / 1000)
-    await fetch(`${API}/sessions/${id}/questions/${q.id}/open`, {
-      method: 'POST'
-    })
+    await fetch(`${API}/sessions/${id}/questions/${q.id}/open`, { method: 'POST' })
   }
 
   // ── Close question ────────────────────────────────
   async function closeQuestion() {
-  clearInterval(timerRef.current)
-  setOpen(false)
-  setTimeLeft(0)
-  const q = questions[currentQ]
-  await fetch(`${API}/sessions/${id}/questions/${q.id}/close`, { method: 'POST' })
+    clearInterval(timerRef.current)
+    setOpen(false)
+    setTimeLeft(0)
+    const q = questions[currentQ]
+    await fetch(`${API}/sessions/${id}/questions/${q.id}/close`, { method: 'POST' })
   }
 
   // ── Next question ─────────────────────────────────
@@ -92,7 +95,7 @@ export default function LiveView({ lastEvent }) {
     }
   }
 
-  // ── Build chart data from responses ──────────────
+  // ── Build chart data ──────────────────────────────
   function chartData() {
     const counts = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 }
     Object.values(responses).forEach(bitmask => {
@@ -105,15 +108,16 @@ export default function LiveView({ lastEvent }) {
 
   const q = questions[currentQ]
   const totalResponses = Object.keys(responses).length
+  const unassignedCount = Object.keys(responses).filter(mac => !enrolledMacs.has(mac)).length
 
   if (!session) return <div style={{ padding: '32px' }}>Loading...</div>
 
   const s = {
-    page:    { padding: '32px 48px', maxWidth: '800px' },
-    card:    { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '20px' },
-    btn:     { padding: '10px 20px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: '#3b82f6', color: '#fff' },
-    btnRed:  { padding: '10px 20px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: '#ef4444', color: '#fff' },
-    btnGhost:{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', border: '1px solid #e2e8f0', cursor: 'pointer', background: '#fff', color: '#374151' },
+    page:     { padding: '32px 48px', maxWidth: '800px' },
+    card:     { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '20px' },
+    btn:      { padding: '10px 20px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: '#3b82f6', color: '#fff' },
+    btnRed:   { padding: '10px 20px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', border: 'none', cursor: 'pointer', background: '#ef4444', color: '#fff' },
+    btnGhost: { padding: '10px 20px', fontSize: '14px', fontWeight: 600, borderRadius: '8px', border: '1px solid #e2e8f0', cursor: 'pointer', background: '#fff', color: '#374151' },
   }
 
   return (
@@ -149,8 +153,17 @@ export default function LiveView({ lastEvent }) {
           </div>
 
           {/* Response count */}
-          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>
-            {totalResponses} response{totalResponses !== 1 ? 's' : ''} received
+          <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <span>{totalResponses} response{totalResponses !== 1 ? 's' : ''} received</span>
+            {unassignedCount > 0 && (
+              <span style={{
+                color: '#f59e0b', fontWeight: 600, fontSize: '13px',
+                background: '#fffbeb', padding: '2px 8px',
+                borderRadius: '20px', border: '1px solid #fde68a'
+              }}>
+                ⚠ {unassignedCount} unassigned
+              </span>
+            )}
           </div>
 
           {/* Bar chart */}
